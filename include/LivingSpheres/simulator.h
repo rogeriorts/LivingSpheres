@@ -7,6 +7,8 @@
 #include "CImg.h"
 #include "util.h"
 #include <algorithm>
+#include "grid.h"
+#include <chrono>
 
 #define M_PI 3.14159265358979323846
 
@@ -39,13 +41,12 @@ struct cell_contacts
     void add_contact(int cell_a_, int cell_b_, double contact_vector_x_,
                      double contact_vector_y_, int last_contact_index)
     {
-        if (last_contact_index >= max_number_of_contacts)
+        if (last_contact_index >= cell_a.size())
         {
             cell_a.push_back(cell_a_);
             cell_b.push_back(cell_b_);
             contact_vector_x.push_back(contact_vector_x_);
             contact_vector_y.push_back(contact_vector_y_);
-            max_number_of_contacts++;
         }
         else
         {
@@ -113,6 +114,115 @@ void find_contacts(cells_type &cells, cell_contacts &contacts, double radius, bo
                 double dist_y = boundary_position - cells.y[i];
                 contacts.add_contact(i, -1, 0.0, dist_y, contact_count);
                 contact_count++;
+            }
+        }
+    }
+}
+
+void add_cells_to_grid(cells_type &cells, grid_type &grid)
+{
+    for (int i = 0; i < cells.number_of_cells; i++)
+    {
+        grid.add_cell_to_block(cells.x[i], cells.y[i], i);
+    }
+}
+
+void find_contact_between_pair_of_cells(
+    cells_type &cells, cell_contacts &contacts,
+    int &contact_count, int i, int j, double radius)
+{
+    if (cells.is_wall[i] > -1 && cells.is_wall[j] > -1)
+        return;
+
+    double dist_x = cells.x[j] - cells.x[i];
+    double dist_y = cells.y[j] - cells.y[i];
+    double squared_distance = dist_x * dist_x + dist_y * dist_y;
+
+    if (squared_distance < 4.0 * radius * radius)
+    {
+        contacts.add_contact(i, j, dist_x, dist_y, contact_count);
+        contact_count++;
+    }
+}
+
+void find_contacts_grid(cells_type &cells, cell_contacts &contacts, grid_type &grid,
+                        double radius, bool has_boundaries, double width = 500.0, double height = 500.0)
+{
+    int contact_count = 0;
+    contacts.number_of_contacts = 0;
+    for (int grid_i = 0; grid_i < grid.nx; grid_i++)
+    {
+        for (int grid_j = 0; grid_j < grid.ny; grid_j++)
+        {
+            int k_a = grid_i + grid.nx * grid_j;
+            for (int c_a = 0; c_a < grid.blocks[k_a].next_position_on_block; c_a++)
+            {
+                int i = grid.blocks[k_a].cell_ids[c_a];
+                // looking for the contacts inside the same grid block
+                for (int c_b = c_a + 1; c_b < grid.blocks[k_a].next_position_on_block; c_b++)
+                {
+                    int j = grid.blocks[k_a].cell_ids[c_b];
+                    find_contact_between_pair_of_cells(cells, contacts, contact_count, i, j, radius);
+                }
+                
+                // now, lets compare with the next block i + 1
+                if (grid_i + 1 < grid.nx)
+                {
+                    int k_b = k_a + 1;
+                    for (int c_b = 0; c_b < grid.blocks[k_b].next_position_on_block; c_b++)
+                    {
+                        int j = grid.blocks[k_b].cell_ids[c_b];
+                        find_contact_between_pair_of_cells(cells, contacts, contact_count, i, j, radius);
+                    }
+                }
+                // now, lets compare with the next block j + 1
+                if (grid_j + 1 < grid.ny)
+                {
+                    int k_b = k_a + grid.nx;
+                    for (int c_b = 0; c_b < grid.blocks[k_b].next_position_on_block; c_b++)
+                    {
+                        int j = grid.blocks[k_b].cell_ids[c_b];
+                        find_contact_between_pair_of_cells(cells, contacts, contact_count, i, j, radius);
+                    }
+                }
+                // now, lets compare with the next block i + 1 and j-1
+                if (grid_j - 1 >= 0 && grid_i + 1 < grid.nx)
+                {
+                    int k_b = k_a - grid.nx + 1;
+                    for (int c_b = 0; c_b < grid.blocks[k_b].next_position_on_block; c_b++)
+                    {
+                        int j = grid.blocks[k_b].cell_ids[c_b];
+                        find_contact_between_pair_of_cells(cells, contacts, contact_count, i, j, radius);
+                    }
+                }
+                // now, lets compare with the next block i + 1 and j+1
+                if (grid_j + 1 < grid.ny && grid_i + 1 < grid.nx)
+                {
+                    int k_b = k_a + grid.nx + 1;
+                    for (int c_b = 0; c_b < grid.blocks[k_b].next_position_on_block; c_b++)
+                    {
+                        int j = grid.blocks[k_b].cell_ids[c_b];
+                        find_contact_between_pair_of_cells(cells, contacts, contact_count, i, j, radius);
+                    }
+                }
+                
+                if (has_boundaries)
+                {
+                    double boundary_position;
+                    // verify horizontal contacts with boundaries
+                    if (verify_boundary_contact(cells.x[i], width, radius, boundary_position))
+                    {
+                        double dist_x = boundary_position - cells.x[i];
+                        contacts.add_contact(i, -1, dist_x, 0.0, contact_count);
+                        contact_count++;
+                    }
+                    if (verify_boundary_contact(cells.y[i], height, radius, boundary_position))
+                    {
+                        double dist_y = boundary_position - cells.y[i];
+                        contacts.add_contact(i, -1, 0.0, dist_y, contact_count);
+                        contact_count++;
+                    }
+                }
             }
         }
     }
@@ -237,22 +347,46 @@ void compute_new_position(cells_type &cells, double timestep, double gravity)
     }
 }
 
-void do_one_iteration(cells_type &cells, cell_contacts &contacts,
+using namespace std::chrono;
+
+void do_one_iteration(cells_type &cells, cell_contacts &contacts,grid_type &grid,
                       double radius, double timestep, double width, double height, double friction_coefficient, double gravity,
-                      bool has_boundaries)
+                      bool has_boundaries, bool use_grid,
+                      double &time_finding_contacts,
+                    double &time_in_forces, double &time_in_move)
 {
-    find_contacts(cells, contacts, radius, has_boundaries, width, height);
+    auto start = high_resolution_clock::now();
+    if(use_grid)
+    {
+        
+        grid.reset_grid();
+        add_cells_to_grid(cells, grid);
+        find_contacts_grid(cells,contacts,grid,radius,has_boundaries,width,height);
+    }
+    else{
+        find_contacts(cells, contacts, radius, has_boundaries, width, height);
+    }
+    auto stop = high_resolution_clock::now();
+    time_finding_contacts += duration<double>(stop - start).count();
+    
+    
+    start = high_resolution_clock::now();
     reset_forces(cells);
     calculate_force_due_contacts(cells, contacts, radius, friction_coefficient);
+    stop = high_resolution_clock::now();
+    time_in_forces += duration<double>(stop - start).count();
     // if(!has_boundaries) calculate_force_due_boundaries(radius, cells, timestep, width, height, friction_coefficient);
-
+    start = high_resolution_clock::now();
     compute_new_position(cells, timestep, gravity);
+    stop = high_resolution_clock::now();
+    time_in_move += duration<double>(stop - start).count();
 }
 
 struct Environment
 {
     cells_type cells;
     cell_contacts contacts;
+    grid_type grid;
 
     double radius;
     double friction_coefficient;
@@ -275,6 +409,7 @@ struct Environment
         double radius_,
         double width_,
         double height_,
+        double grid_multiplier,
         double friction_coefficient_,
         bool has_boundaries_ = true,
         double gravity_ = -9.81,
@@ -290,6 +425,7 @@ struct Environment
         cells_initialized = false;
         walls_initialized = false;
         number_of_walls = 0;
+        grid.grid_initialize(radius, width, height,grid_multiplier);
     }
 
     void initialize_living_cells(int initial_number_of_cells,
@@ -340,15 +476,17 @@ struct Environment
             cells.k.push_back(youngs_modulus);
             cells.damp_ratio.push_back(damping_ratio);
             cells.mass.push_back(mass);
-            cells.is_wall.push_back(number_of_walls); 
+            cells.is_wall.push_back(number_of_walls);
             cells.number_of_cells++;
         }
         number_of_walls += 1;
     }
 
-    void start_simulation(double output_interval, double duration, double print_output)
+    void start_simulation(double output_interval, double duration,bool use_grid, bool print_output)
     {
-
+        double time_finding_contacts = 0.0;
+        double time_in_forces = 0.0;
+        double time_in_move = 0.0;
         int number_of_cells = cells.number_of_cells;
 
         // CALCULATE TIMESTEP
@@ -408,7 +546,12 @@ struct Environment
                     Sleep(100);
                 }
 
-                do_one_iteration(cells, contacts, radius, timestep, width, height, friction_coefficient, gravity,has_boundaries);
+                do_one_iteration(cells, contacts,grid, radius, timestep, 
+                width, height, friction_coefficient, gravity, has_boundaries, use_grid,
+                    time_finding_contacts,
+                    time_in_forces,
+                    time_in_move
+                );
 
                 simulation_time += timestep;
                 if (simulation_time >= duration)
@@ -420,12 +563,21 @@ struct Environment
             while (1)
             {
 
-                do_one_iteration(cells, contacts, radius, timestep, width, height, friction_coefficient, gravity, has_boundaries);
+                do_one_iteration(cells, contacts,grid, radius, 
+                timestep, width, height, friction_coefficient, 
+                gravity, has_boundaries, use_grid,
+                    time_finding_contacts,
+                    time_in_forces,
+                    time_in_move
+                );
 
                 simulation_time += timestep;
                 if (simulation_time >= duration)
                     break;
             }
         }
+        std::cout<< "time_finding_contacts" <<time_finding_contacts<<"\n";
+        std::cout<< "time_in_forces" <<time_in_forces<<"\n";
+        std::cout<< "time_in_move" <<time_in_move<<"\n";
     }
 };
