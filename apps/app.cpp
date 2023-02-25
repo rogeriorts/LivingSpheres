@@ -24,7 +24,12 @@ int main()
 
     env.add_wall(500.0,0.0,0.0 , 500.0, 50, 1e4, 0.1,1.0);
     bool use_grid = true;
+    
+    auto start = std::chrono::steady_clock::now();
     env.start_simulation(output_interval, 10, use_grid,true);
+    auto end = std::chrono::steady_clock::now();
+    std::chrono::duration<double> diff = end - start;
+    std::cout << "Duration [seconds]: " << diff.count() << std::endl;
 
     return 0;
 }
