@@ -164,7 +164,7 @@ void find_contacts_grid(cells_type &cells, cell_contacts &contacts, grid_type &g
                     int j = grid.blocks[k_a].cell_ids[c_b];
                     find_contact_between_pair_of_cells(cells, contacts, contact_count, i, j, radius);
                 }
-                
+
                 // now, lets compare with the next block i + 1
                 if (grid_i + 1 < grid.nx)
                 {
@@ -205,7 +205,7 @@ void find_contacts_grid(cells_type &cells, cell_contacts &contacts, grid_type &g
                         find_contact_between_pair_of_cells(cells, contacts, contact_count, i, j, radius);
                     }
                 }
-                
+
                 if (has_boundaries)
                 {
                     double boundary_position;
@@ -275,7 +275,10 @@ void calculate_force_due_contacts(cells_type &cells, cell_contacts &contacts, do
             spring_deformation = 2.0 * radius - distance;
         }
         // spring force
+        if(spring_deformation < 0.0) continue;
+
         double spring_force = std::min(avg_k * spring_deformation, avg_k * radius);
+        
         // damping force
 
         double vx_rel = vx_b - cells.vx[i];
@@ -349,27 +352,45 @@ void compute_new_position(cells_type &cells, double timestep, double gravity)
 
 using namespace std::chrono;
 
-void do_one_iteration(cells_type &cells, cell_contacts &contacts,grid_type &grid,
+bool search_trigger(cells_type &cells, double max_velocity_search)
+{
+    double squared_max_velocity = max_velocity_search*max_velocity_search;
+    for(int i =0; i<cells.number_of_cells;i++)
+    {
+        if (cells.vx[i]*cells.vx[i] + cells.vy[i]*cells.vy[i] > squared_max_velocity)
+            return true;
+    }
+    return false;
+}
+
+void do_one_iteration(cells_type &cells, cell_contacts &contacts, grid_type &grid,
                       double radius, double timestep, double width, double height, double friction_coefficient, double gravity,
                       bool has_boundaries, bool use_grid,
                       double &time_finding_contacts,
-                    double &time_in_forces, double &time_in_move)
+                      double &time_in_forces, double &time_in_move, int &n_timesteps, int &n_searchs,double max_velocity_search)
 {
     auto start = high_resolution_clock::now();
-    if(use_grid)
+    
+    
+    if(search_trigger(cells, max_velocity_search))
     {
-        
-        grid.reset_grid();
-        add_cells_to_grid(cells, grid);
-        find_contacts_grid(cells,contacts,grid,radius,has_boundaries,width,height);
-    }
-    else{
-        find_contacts(cells, contacts, radius, has_boundaries, width, height);
+        if (use_grid)
+        {
+
+            grid.reset_grid();
+            add_cells_to_grid(cells, grid);
+            find_contacts_grid(cells, contacts, grid, radius, has_boundaries, width, height);
+            n_searchs++;
+        }
+        else
+        {
+            find_contacts(cells, contacts, radius, has_boundaries, width, height);
+            n_searchs++;
+        }
     }
     auto stop = high_resolution_clock::now();
     time_finding_contacts += duration<double>(stop - start).count();
-    
-    
+
     start = high_resolution_clock::now();
     reset_forces(cells);
     calculate_force_due_contacts(cells, contacts, radius, friction_coefficient);
@@ -380,6 +401,7 @@ void do_one_iteration(cells_type &cells, cell_contacts &contacts,grid_type &grid
     compute_new_position(cells, timestep, gravity);
     stop = high_resolution_clock::now();
     time_in_move += duration<double>(stop - start).count();
+    n_timesteps++;
 }
 
 struct Environment
@@ -405,11 +427,14 @@ struct Environment
 
     double timestep;
 
+    double search_multiplier;
+
     Environment(
         double radius_,
         double width_,
         double height_,
-        double grid_multiplier,
+        double grid_size_multiplier_,
+        double search_multiplier_,
         double friction_coefficient_,
         bool has_boundaries_ = true,
         double gravity_ = -9.81,
@@ -419,13 +444,14 @@ struct Environment
         height = height_;
         width = width_;
         friction_coefficient = friction_coefficient_;
+        search_multiplier = search_multiplier_;
         gravity = gravity_;
         has_boundaries = has_boundaries_;
         minimum_timesteps_per_loading = minimum_timesteps_per_loading_;
         cells_initialized = false;
         walls_initialized = false;
         number_of_walls = 0;
-        grid.grid_initialize(radius, width, height,grid_multiplier);
+        grid.grid_initialize(radius, width, height, grid_size_multiplier_);
     }
 
     void initialize_living_cells(int initial_number_of_cells,
@@ -482,11 +508,12 @@ struct Environment
         number_of_walls += 1;
     }
 
-    void start_simulation(double output_interval, double duration,bool use_grid, bool print_output)
+    void start_simulation(double output_interval, double duration, bool use_grid, bool print_output)
     {
         double time_finding_contacts = 0.0;
         double time_in_forces = 0.0;
         double time_in_move = 0.0;
+        int n_timesteps=0, n_searchs=0;
         int number_of_cells = cells.number_of_cells;
 
         // CALCULATE TIMESTEP
@@ -505,6 +532,8 @@ struct Environment
         double cell_stiffness = max_k * 2.0 * (double)radius;
 
         double timestep = M_PI / (2 * (double)minimum_timesteps_per_loading) * sqrt(min_mass / cell_stiffness);
+
+        double max_velocity_search = radius * search_multiplier / timestep;
 
         double simulation_time = 0.0;
 
@@ -543,15 +572,13 @@ struct Environment
                     }
                     dsp.display(img);
                     next_output += output_interval;
-                    Sleep(100);
                 }
 
-                do_one_iteration(cells, contacts,grid, radius, timestep, 
-                width, height, friction_coefficient, gravity, has_boundaries, use_grid,
-                    time_finding_contacts,
-                    time_in_forces,
-                    time_in_move
-                );
+                do_one_iteration(cells, contacts, grid, radius, timestep,
+                                 width, height, friction_coefficient, gravity, has_boundaries, use_grid,
+                                 time_finding_contacts,
+                                 time_in_forces,
+                                 time_in_move, n_timesteps, n_searchs,max_velocity_search);
 
                 simulation_time += timestep;
                 if (simulation_time >= duration)
@@ -563,21 +590,22 @@ struct Environment
             while (1)
             {
 
-                do_one_iteration(cells, contacts,grid, radius, 
-                timestep, width, height, friction_coefficient, 
-                gravity, has_boundaries, use_grid,
-                    time_finding_contacts,
-                    time_in_forces,
-                    time_in_move
-                );
+                do_one_iteration(cells, contacts, grid, radius,
+                                 timestep, width, height, friction_coefficient,
+                                 gravity, has_boundaries, use_grid,
+                                 time_finding_contacts,
+                                 time_in_forces,
+                                 time_in_move, n_timesteps, n_searchs,max_velocity_search);
 
                 simulation_time += timestep;
                 if (simulation_time >= duration)
                     break;
             }
         }
-        std::cout<< "time_finding_contacts" <<time_finding_contacts<<"\n";
-        std::cout<< "time_in_forces" <<time_in_forces<<"\n";
-        std::cout<< "time_in_move" <<time_in_move<<"\n";
+        std::cout << "time_finding_contacts: " << time_finding_contacts << "\n";
+        std::cout << "time_in_forces: " << time_in_forces << "\n";
+        std::cout << "time_in_move: " << time_in_move << "\n";
+        std::cout << "n_timesteps: " << n_timesteps << "\n";
+        std::cout << "n_searchs: " << n_searchs << "\n";
     }
 };
