@@ -28,11 +28,11 @@ struct grid_type{
 
     }
 
-    bool add_cell_to_block(double cell_x, double cell_y, int cell_index)
+    int add_cell_to_block(double cell_x, double cell_y, int cell_index)
     {
         if (cell_x > block_size_x * (double)nx || cell_y > block_size_y * (double)ny
         ||cell_x < 0.0 || cell_y < 0.0) 
-            return false;
+            return -1;
         
         int i = (int) std::floor(cell_x / block_size_x);
         int j = (int) std::floor(cell_y / block_size_y);
@@ -49,7 +49,7 @@ struct grid_type{
         }
         blocks[block_index].next_position_on_block++;
 
-        return true;
+        return block_index;
     }
     
     void reset_grid()
