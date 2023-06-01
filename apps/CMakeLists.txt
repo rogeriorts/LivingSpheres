@@ -1,4 +1,4 @@
-add_executable(app app.cpp)
+add_executable(app app.cpp ../include/LivingSPheres/simulator.cpp)
 
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)

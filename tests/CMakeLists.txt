@@ -7,8 +7,16 @@ FetchContent_MakeAvailable(catch2)
 # Adds Catch2::Catch2
 
 # Tests need to be added as executables first
-add_executable(test_cell_movements_due_external_forces test_cell_movements_due_external_forces.cpp)
-add_executable(test_grid test_grid.cpp)
+add_executable(
+  test_cell_movements_due_external_forces 
+  test_cell_movements_due_external_forces.cpp
+  ../include/LivingSPheres/simulator.cpp
+  )
+add_executable(
+  test_grid 
+  test_grid.cpp 
+  ../include/LivingSPheres/simulator.cpp
+)
 
 # I'm using C++17 in the test
 #target_compile_features(testlib PRIVATE cxx_std_17)
