@@ -10,6 +10,8 @@ struct cell
     std::vector<double> fy;
     double spring_coefficient;
     double mass;
+    double density;
+    double volume;
     double damping_ratio;
     int is_wall;
     std::vector<int> contacts;

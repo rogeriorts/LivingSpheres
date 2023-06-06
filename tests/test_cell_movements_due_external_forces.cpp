@@ -33,6 +33,8 @@ TEST_CASE("Two timesteps of 2 living cells")
     cell_.spring_coefficient = 1.0e6;
     cell_.damping_ratio = 0.1;
     cell_.mass = 1.0;
+    cell_.volume = (4.0 / 3.0 * M_PI * radius * radius * radius);
+    cell_.density = cell_.mass / cell_.volume;
     cell_.is_wall = -1;
     sim.cells.cells_collection.push_back(cell_);
     sim.cells.number_of_cells++;
@@ -156,6 +158,8 @@ TEST_CASE("One cell falling due gravity")
     cell_.spring_coefficient = 1.0e6;
     cell_.damping_ratio = 0.1;
     cell_.mass = 1.0;
+    cell_.volume = (4.0 / 3.0 * M_PI * radius * radius * radius);
+    cell_.density = cell_.mass / cell_.volume;
     cell_.is_wall = -1;
     sim.cells.cells_collection.push_back(cell_);
     sim.cells.number_of_cells++;
@@ -211,6 +215,8 @@ TEST_CASE("Two timesteps of 2 living cell and a wall cell")
     cell_.spring_coefficient = 1.0e6;
     cell_.damping_ratio = 0.1;
     cell_.mass = 1.0;
+    cell_.volume = (4.0 / 3.0 * M_PI * radius * radius * radius);
+    cell_.density = cell_.mass / cell_.volume;
     cell_.is_wall = -1;
     sim.cells.cells_collection.push_back(cell_);
     sim.cells.number_of_cells++;
@@ -303,10 +309,11 @@ TEST_CASE("TWO LIVING CELLS COLIDING WITH LIMITS")
     double width = 40.0;
     double height = 40.0;
     double friction_coefficient = 0.3;
+    double density = 1.0 / (4.0 / 3.0 * M_PI * radius * radius * radius);
 
     Simulator sim = Simulator(radius, width, height, 2.0, 0.001, friction_coefficient, 1, true);
 
-    sim.initialize_living_cells(number_of_cells_alive, 1e4, 1.1e4, 0.1, 0.1, 10.0, 200.0, width, height);
+    sim.initialize_living_cells(number_of_cells_alive, 1e4, 1.1e4, 0.1, 0.1, 10.0, 200.0, width, height,density);
 
     sim.cells.cells_collection[0].x = 9.0;
     sim.cells.cells_collection[0].y = 15.0;

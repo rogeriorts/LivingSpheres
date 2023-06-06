@@ -4,6 +4,8 @@
 #include "grid.h"
 #include "cells.h"
 
+#define M_PI 3.14159265358979323846
+
 struct Simulator
 {
     cells_type cells;
@@ -61,13 +63,13 @@ struct Simulator
     void initialize_living_cells(int initial_number_of_cells,
                                  double k_min, double k_max,
                                  double damping_min, double damping_max, double x_min, double y_min,
-                                 double x_max, double y_max);
+                                 double x_max, double y_max, double density);
 
     void add_wall(
         double x1_, double y1_,
         double x2_, double y2_,
         int number_of_cells_, double spring_coefficient,
-        double damping_ratio, double mass);
+        double damping_ratio, double density);
 
     void start_simulation(double output_interval,
                           double timestep_, double duration, bool print_output);

@@ -7,7 +7,7 @@
 #include <omp.h>
 #include "simulator.h"
 
-#define M_PI 3.14159265358979323846
+
 
 bool Simulator::verify_boundary_contact(double cell_position, double boundary_max,
                                         double &boundary_position)
@@ -294,7 +294,7 @@ void Simulator::do_one_iteration()
 void Simulator::initialize_living_cells(int initial_number_of_cells,
                                         double k_min, double k_max,
                                         double damping_min, double damping_max, double x_min, double y_min,
-                                        double x_max, double y_max)
+                                        double x_max, double y_max, double density)
 {
 
     for (int i = 0; i < initial_number_of_cells; i++)
@@ -309,7 +309,9 @@ void Simulator::initialize_living_cells(int initial_number_of_cells,
         cell_.fy.resize(number_of_threads, 0.0);
         cell_.spring_coefficient = GenerateRandomNumber(k_min, k_max);
         cell_.damping_ratio = GenerateRandomNumber(damping_min, damping_max);
-        cell_.mass = 1.0;
+        cell_.volume = 4.0 / 3.0 * M_PI * radius * radius * radius;
+        cell_.density = density;
+        cell_.mass = cell_.volume * cell_.density;
         cell_.is_wall = -1;
 
         cells.cells_collection.push_back(cell_);
@@ -321,7 +323,7 @@ void Simulator::initialize_living_cells(int initial_number_of_cells,
 void Simulator::add_wall(
     double x1_, double y1_,
     double x2_, double y2_,
-    int number_of_cells_, double spring_coefficient, double damping_ratio, double mass)
+    int number_of_cells_, double spring_coefficient, double damping_ratio, double density)
 {
     wall_ids.push_back(number_of_walls);
 
@@ -344,7 +346,9 @@ void Simulator::add_wall(
         cell_.fy.resize(number_of_threads, 0.0);
         cell_.spring_coefficient = spring_coefficient;
         cell_.damping_ratio = damping_ratio;
-        cell_.mass = mass;
+        cell_.volume = 4.0 / 3.0 * M_PI * radius * radius * radius;
+        cell_.density = density;
+        cell_.mass = cell_.volume * cell_.density;
         cell_.is_wall = number_of_walls;
 
         cells.cells_collection.push_back(cell_);

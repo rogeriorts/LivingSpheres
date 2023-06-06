@@ -23,6 +23,7 @@ int main()
 
     // material settings
     double friction_coefficient = 0.3;
+    double density = 1.0 / (4.0 / 3.0 * M_PI * radius * radius * radius);
     double grid_multiplier = 2.0;
     double search_multiplier = 0.001;
 
@@ -33,14 +34,14 @@ int main()
         true, gravity);
 
     sim.initialize_living_cells(
-        number_of_cells_alive, 1e3, 1.1e3, 0.4, 0.5, 10.0, 200.0, width, height);
+        number_of_cells_alive, 1e3, 1.1e3, 0.4, 0.5, 10.0, 200.0, width, height, density);
 
     // adding wall cells
 
-    sim.add_wall(radius, radius, radius, 500.0 - radius, 100, 1e4, 0.1, 1.0);
-    sim.add_wall(500.0 - radius, radius, 500.0 - radius, 500.0 - radius, 100, 1e4, 0.1, 1.0);
-    sim.add_wall(radius, 500.0 - radius, 500.0 - radius, 500.0 - radius, 100, 1e4, 0.1, 1.0);
-    sim.add_wall(radius, radius, 500.0 - radius, radius, 100, 1e4, 0.1, 1.0);
+    sim.add_wall(radius, radius, radius, 500.0 - radius, 100, 1e4, 0.1, density);
+    sim.add_wall(500.0 - radius, radius, 500.0 - radius, 500.0 - radius, 100, 1e4, 0.1, density);
+    sim.add_wall(radius, 500.0 - radius, 500.0 - radius, 500.0 - radius, 100, 1e4, 0.1, density);
+    sim.add_wall(radius, radius, 500.0 - radius, radius, 100, 1e4, 0.1, density);
 
     auto start = std::chrono::steady_clock::now();
 
