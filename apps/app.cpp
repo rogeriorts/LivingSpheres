@@ -9,21 +9,22 @@ int main()
     // simulation settings
     bool print_animation = true;
     int number_of_threads = 10;
-
     double timestep = 0.5e-2;
     double simulation_duration = 300;
     double output_interval = 0.1;
 
     // environment settings
     int number_of_cells_alive = 6000;
-    double radius = 3.0;
     double gravity = -9.81;
     double width = 1700.0;
     double height = 800.0;
 
-    // material settings
+    // cell and material settings
+    double radius = 3.0;
     double friction_coefficient = 0.3;
     double density = 1.0 / (4.0 / 3.0 * M_PI * radius * radius * radius);
+    
+    //double grid parameters
     double grid_multiplier = 2.0;
     double search_multiplier = 0.001;
 
@@ -34,7 +35,7 @@ int main()
         true, gravity);
 
     sim.initialize_living_cells(
-        number_of_cells_alive, 1e3, 1.1e3, 0.4, 0.5, 10.0, 200.0, width, height, density);
+        number_of_cells_alive, 1e3, 0.4, 10.0, 200.0, width, height, density);
 
     // adding wall cells
 

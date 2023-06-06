@@ -61,9 +61,10 @@ struct Simulator
     }
 
     void initialize_living_cells(int initial_number_of_cells,
-                                 double k_min, double k_max,
-                                 double damping_min, double damping_max, double x_min, double y_min,
-                                 double x_max, double y_max, double density);
+                                        double spring_coefficient,
+                                        double damping_ratio, 
+                                        double x_min, double y_min,
+                                        double x_max, double y_max, double density);
 
     void add_wall(
         double x1_, double y1_,

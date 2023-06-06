@@ -292,8 +292,9 @@ void Simulator::do_one_iteration()
 }
 
 void Simulator::initialize_living_cells(int initial_number_of_cells,
-                                        double k_min, double k_max,
-                                        double damping_min, double damping_max, double x_min, double y_min,
+                                        double spring_coefficient,
+                                        double damping_ratio, 
+                                        double x_min, double y_min,
                                         double x_max, double y_max, double density)
 {
 
@@ -307,8 +308,8 @@ void Simulator::initialize_living_cells(int initial_number_of_cells,
         cell_.vy = 0.0;
         cell_.fx.resize(number_of_threads, 0.0);
         cell_.fy.resize(number_of_threads, 0.0);
-        cell_.spring_coefficient = GenerateRandomNumber(k_min, k_max);
-        cell_.damping_ratio = GenerateRandomNumber(damping_min, damping_max);
+        cell_.spring_coefficient = spring_coefficient;
+        cell_.damping_ratio = damping_ratio;
         cell_.volume = 4.0 / 3.0 * M_PI * radius * radius * radius;
         cell_.density = density;
         cell_.mass = cell_.volume * cell_.density;

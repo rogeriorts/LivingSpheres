@@ -313,7 +313,7 @@ TEST_CASE("TWO LIVING CELLS COLIDING WITH LIMITS")
 
     Simulator sim = Simulator(radius, width, height, 2.0, 0.001, friction_coefficient, 1, true);
 
-    sim.initialize_living_cells(number_of_cells_alive, 1e4, 1.1e4, 0.1, 0.1, 10.0, 200.0, width, height,density);
+    sim.initialize_living_cells(number_of_cells_alive, 1e4, 0.1, 10.0, 200.0, width, height,density);
 
     sim.cells.cells_collection[0].x = 9.0;
     sim.cells.cells_collection[0].y = 15.0;
