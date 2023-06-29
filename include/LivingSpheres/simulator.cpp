@@ -110,6 +110,9 @@ void Simulator::reset_forces()
 
         std::fill(cells.cells_collection[i].fy.begin(),
                   cells.cells_collection[i].fy.end(), 0.0);
+
+        std::fill(cells.cells_collection[i].transferred_heat.begin(),
+                  cells.cells_collection[i].transferred_heat.end(), 0.0);
     }
 }
 
@@ -137,7 +140,7 @@ void Simulator::calculate_force_due_contacts()
             int i = cell;
             int j = cells.cells_collection[cell].contacts[contact];
 
-            double avg_k, avg_mass, avg_damp_ratio, vx_b, vy_b, spring_deformation;
+            double avg_k, avg_mass, avg_damp_ratio, vx_b, vy_b, spring_deformation, avg_heat_conduction_coeff;
 
             if (j < 0)
             {
@@ -153,6 +156,11 @@ void Simulator::calculate_force_due_contacts()
                 avg_k = (cells.cells_collection[i].spring_coefficient + cells.cells_collection[j].spring_coefficient) * 0.5;
                 avg_mass = (cells.cells_collection[i].mass + cells.cells_collection[j].mass) * 0.5;
                 avg_damp_ratio = (cells.cells_collection[i].damping_ratio + cells.cells_collection[j].damping_ratio) * 0.5;
+                
+                avg_heat_conduction_coeff = (
+                    cells.cells_collection[i].heat_conduction_coefficient + 
+                    cells.cells_collection[j].heat_conduction_coefficient) * 0.5;
+
                 vx_b = cells.cells_collection[j].vx;
                 vy_b = cells.cells_collection[j].vy;
                 spring_deformation = 2.0 * radius - distance;
@@ -197,7 +205,7 @@ void Simulator::calculate_force_due_contacts()
             // calculate new velocities
 
             double fx = -normal_force_x - damping_force_x - tangential_force_x;
-            double fy = -normal_force_y - damping_force_y - tangential_force_y;
+            double fy = -normal_force_y - damping_force_y - tangential_force_y;           
 
             cells.cells_collection[i].fx[t] += fx;
             cells.cells_collection[i].fy[t] += fy;
@@ -205,6 +213,23 @@ void Simulator::calculate_force_due_contacts()
             {
                 cells.cells_collection[j].fx[t] -= fx;
                 cells.cells_collection[j].fy[t] -= fy;
+
+                double contact_distance_from_center = radius - spring_deformation * 0.5;
+                
+                double contact_radius_squared = 
+                    radius * radius - contact_distance_from_center * contact_distance_from_center;
+                
+                double area = contact_radius_squared * M_PI;
+
+                //double transferred heat
+                double heat_transfer = 
+                    avg_heat_conduction_coeff * (
+                    cells.cells_collection[j].temperature - cells.cells_collection[i].temperature
+                    ) / distance * area;
+
+                cells.cells_collection[i].transferred_heat[t] += heat_transfer;
+                cells.cells_collection[j].transferred_heat[t] -= heat_transfer;
+
             }
         }
     }
@@ -221,11 +246,13 @@ void Simulator::compute_new_position()
             // calculating accelerations
             double fx = 0.0;
             double fy = 0.0;
+            double total_transferred_heat = 0.0;
 
             for (int t = 0; t < number_of_threads; t++)
             {
                 fx += cells.cells_collection[i].fx[t];
                 fy += cells.cells_collection[i].fy[t];
+                total_transferred_heat += cells.cells_collection[i].transferred_heat[t];
             }
 
             double ax = fx / cells.cells_collection[i].mass;
@@ -233,14 +260,25 @@ void Simulator::compute_new_position()
 
             // calculate new positions
             //  s = s0 + v0 * t + a * t^2 /2
-            double acceleration_timeste_factor = timestep * timestep * 0.5;
-            cells.cells_collection[i].x += cells.cells_collection[i].vx * timestep + ax * acceleration_timeste_factor;
-            cells.cells_collection[i].y += cells.cells_collection[i].vy * timestep + ay * acceleration_timeste_factor;
+            if (!cells.cells_collection[i].fixed)
+            {
+                double acceleration_timeste_factor = timestep * timestep * 0.5;
+                cells.cells_collection[i].x += cells.cells_collection[i].vx * timestep + ax * acceleration_timeste_factor;
+                cells.cells_collection[i].y += cells.cells_collection[i].vy * timestep + ay * acceleration_timeste_factor;
 
-            // calculating new velocities
-            // v = v0 + a * t
-            cells.cells_collection[i].vx += ax * timestep;
-            cells.cells_collection[i].vy += ay * timestep;
+                // calculating new velocities
+                // v = v0 + a * t
+                cells.cells_collection[i].vx += ax * timestep;
+                cells.cells_collection[i].vy += ay * timestep;
+            }
+            //new temperature
+            
+            cells.cells_collection[i].temperature += total_transferred_heat * timestep / 
+                (cells.cells_collection[i].mass * cells.cells_collection[i].specific_heat)  ; 
+
+            //heat transfer with backgrond
+
+            
         }
     }
 }
@@ -259,11 +297,9 @@ bool Simulator::search_trigger()
     return false;
 }
 
-void Simulator::do_one_iteration()
+void Simulator::search_step(bool force_search)
 {
-    auto start = std::chrono::high_resolution_clock::now();
-
-    if (search_trigger())
+    if (search_trigger() || force_search)
     {
 
         grid.reset_grid();
@@ -271,6 +307,15 @@ void Simulator::do_one_iteration()
         find_contacts_grid();
         n_searchs++;
     }
+}
+
+
+void Simulator::do_one_iteration()
+{
+    auto start = std::chrono::high_resolution_clock::now();
+
+    search_step(false);
+
     auto stop = std::chrono::high_resolution_clock::now();
     time_finding_contacts += std::chrono::duration<double>(stop - start).count();
 
@@ -295,7 +340,12 @@ void Simulator::initialize_living_cells(int initial_number_of_cells,
                                         double spring_coefficient,
                                         double damping_ratio, 
                                         double x_min, double y_min,
-                                        double x_max, double y_max, double density)
+                                        double x_max, double y_max, double density,
+                                        double temperature,
+                                        double heat_conduction_coefficient,
+                                        double specific_heat, 
+                                        bool fixed
+                                        )
 {
 
     for (int i = 0; i < initial_number_of_cells; i++)
@@ -308,11 +358,16 @@ void Simulator::initialize_living_cells(int initial_number_of_cells,
         cell_.vy = 0.0;
         cell_.fx.resize(number_of_threads, 0.0);
         cell_.fy.resize(number_of_threads, 0.0);
+        cell_.transferred_heat.resize(number_of_threads, 0.0);
         cell_.spring_coefficient = spring_coefficient;
         cell_.damping_ratio = damping_ratio;
         cell_.volume = 4.0 / 3.0 * M_PI * radius * radius * radius;
         cell_.density = density;
+        cell_.fixed = fixed;
         cell_.mass = cell_.volume * cell_.density;
+        cell_.temperature = temperature;
+        cell_.heat_conduction_coefficient = heat_conduction_coefficient;
+        cell_.specific_heat = specific_heat;
         cell_.is_wall = -1;
 
         cells.cells_collection.push_back(cell_);
@@ -324,7 +379,10 @@ void Simulator::initialize_living_cells(int initial_number_of_cells,
 void Simulator::add_wall(
     double x1_, double y1_,
     double x2_, double y2_,
-    int number_of_cells_, double spring_coefficient, double damping_ratio, double density)
+    int number_of_cells_, double spring_coefficient, double damping_ratio, double density,
+                                        double temperature,
+                                        double heat_conduction_coefficient,
+                                        double specific_heat)
 {
     wall_ids.push_back(number_of_walls);
 
@@ -345,12 +403,17 @@ void Simulator::add_wall(
         cell_.vy = 0.0;
         cell_.fx.resize(number_of_threads, 0.0);
         cell_.fy.resize(number_of_threads, 0.0);
+        cell_.transferred_heat.resize(number_of_threads, 0.0);
         cell_.spring_coefficient = spring_coefficient;
         cell_.damping_ratio = damping_ratio;
         cell_.volume = 4.0 / 3.0 * M_PI * radius * radius * radius;
         cell_.density = density;
         cell_.mass = cell_.volume * cell_.density;
+        cell_.temperature = temperature;
+        cell_.heat_conduction_coefficient = heat_conduction_coefficient;
+        cell_.specific_heat = specific_heat;
         cell_.is_wall = number_of_walls;
+        cell_.fixed = true;
 
         cells.cells_collection.push_back(cell_);
         cells.number_of_cells++;
@@ -358,16 +421,24 @@ void Simulator::add_wall(
     number_of_walls += 1;
 }
 
-void Simulator::start_simulation(double output_interval, double timestep_, double duration, bool print_output)
+void Simulator::simulation_setup(double timestep_)
 {
-
-    int number_of_cells = cells.number_of_cells;
-
     omp_set_num_threads(number_of_threads);
 
     timestep = timestep_;
 
     max_velocity_search = radius * search_multiplier / timestep;
+
+    search_step(true);
+}
+
+void Simulator::start_simulation(double output_interval, double timestep_, double duration, bool print_output)
+{
+
+    int number_of_cells = cells.number_of_cells;
+
+
+    simulation_setup(timestep_);
 
     double simulation_time = 0.0;
 
@@ -412,7 +483,14 @@ void Simulator::start_simulation(double output_interval, double timestep_, doubl
             {
                 for (int i = 0; i < number_of_cells; i++)
                 {
-                    img.draw_circle((int)width - (int)cells.cells_collection[i].x, (int)height - (int)cells.cells_collection[i].y, (int)radius, black);
+                    const unsigned char temperature_to_color = static_cast<unsigned char>((cells.cells_collection[i].temperature - (300.0)) / (400.0 - 300.0) * 255.0);
+
+                    const unsigned char color[] = {temperature_to_color, temperature_to_color, temperature_to_color};
+
+                    img.draw_circle(
+                        (int)width - (int)cells.cells_collection[i].x, 
+                        (int)height - (int)cells.cells_collection[i].y, 
+                        (int)radius, color);
                 }
                 dsp.display(img);
                 next_output += output_interval;

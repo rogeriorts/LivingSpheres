@@ -8,11 +8,22 @@ struct cell
     double vy;
     std::vector<double> fx;
     std::vector<double> fy;
-    double spring_coefficient;
+    std::vector<double> transferred_heat;
+
+
     double mass;
-    double density;
     double volume;
     double damping_ratio;
+    double temperature;
+    
+    //material properties
+    double spring_coefficient;
+    double density;
+    double heat_conduction_coefficient;
+    double specific_heat;
+
+    bool fixed = false;
+    
     int is_wall;
     std::vector<int> contacts;
     std::vector<double> contact_vector_x;

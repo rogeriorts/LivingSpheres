@@ -74,6 +74,7 @@ TEST_CASE("One cell falling due gravity inside the grid")
     cell_.vy = 0.0;
     cell_.fx.push_back(0.0);
     cell_.fy.push_back(0.0);
+    cell_.transferred_heat.push_back(0.0);
     cell_.spring_coefficient = 1.0e6;
     cell_.damping_ratio = 0.1;
     cell_.mass = 1.0;

@@ -30,6 +30,7 @@ TEST_CASE("Two timesteps of 2 living cells")
     cell_.vy = 0.0;
     cell_.fx.push_back(0.0);
     cell_.fy.push_back(0.0);
+    cell_.transferred_heat.push_back(0.0);
     cell_.spring_coefficient = 1.0e6;
     cell_.damping_ratio = 0.1;
     cell_.mass = 1.0;
@@ -45,6 +46,7 @@ TEST_CASE("Two timesteps of 2 living cells")
     cell_.vy = -3.0;
     cell_.fx.push_back(0.0);
     cell_.fy.push_back(0.0);
+    cell_.transferred_heat.push_back(0.0);
     cell_.spring_coefficient = 2.0e6;
     cell_.damping_ratio = 0.2;
     cell_.mass = 2.0;
@@ -155,6 +157,7 @@ TEST_CASE("One cell falling due gravity")
     cell_.vy = 0.0;
     cell_.fx.push_back(0.0);
     cell_.fy.push_back(0.0);
+    cell_.transferred_heat.push_back(0.0);
     cell_.spring_coefficient = 1.0e6;
     cell_.damping_ratio = 0.1;
     cell_.mass = 1.0;
@@ -212,6 +215,7 @@ TEST_CASE("Two timesteps of 2 living cell and a wall cell")
     cell_.vy = 0.0;
     cell_.fx.push_back(0.0);
     cell_.fy.push_back(0.0);
+    cell_.transferred_heat.push_back(0.0);
     cell_.spring_coefficient = 1.0e6;
     cell_.damping_ratio = 0.1;
     cell_.mass = 1.0;
@@ -227,6 +231,7 @@ TEST_CASE("Two timesteps of 2 living cell and a wall cell")
     cell_.vy = 0.0;
     cell_.fx.push_back(0.0);
     cell_.fy.push_back(0.0);
+    cell_.transferred_heat.push_back(0.0);
     cell_.spring_coefficient = 2.0e6;
     cell_.damping_ratio = 0.2;
     cell_.mass = 2.0;
@@ -313,7 +318,9 @@ TEST_CASE("TWO LIVING CELLS COLIDING WITH LIMITS")
 
     Simulator sim = Simulator(radius, width, height, 2.0, 0.001, friction_coefficient, 1, true);
 
-    sim.initialize_living_cells(number_of_cells_alive, 1e4, 0.1, 10.0, 200.0, width, height,density);
+    sim.initialize_living_cells(
+        number_of_cells_alive, 1e4, 0.1, 10.0, 200.0, width, height,density,
+        1.0,1.0,1.0);
 
     sim.cells.cells_collection[0].x = 9.0;
     sim.cells.cells_collection[0].y = 15.0;
